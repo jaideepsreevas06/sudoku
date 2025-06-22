@@ -58,6 +58,12 @@
       background-color: #FFB6C1;
     }
 
+    .cell.invalid {
+      background-color: #ff6b6b;
+      color: white;
+      font-weight: bold;
+    }
+
     .button-container {
       display: flex;
       gap: 10px;
@@ -155,6 +161,9 @@
           if (!/^[1-9]$/.test(value)) {
              e.target.value = "";
            }
+          
+          // Validate the board after input
+          setTimeout(() => validateAndHighlight(), 100);
         });
 
         // Apply border logic
@@ -226,6 +235,14 @@
       }
 
       const userBoard = getBoard();
+      
+      // Check if the current board is valid before checking answer
+      if (!isValidSudoku(userBoard)) {
+        validateAndHighlight();
+        alert("Invalid Sudoku puzzle! Please fix the conflicts highlighted in red before checking your answer.");
+        return;
+      }
+      
       let allCorrect = true;
       let correctCount = 0;
       let totalCount = 0;
@@ -276,7 +293,7 @@
         for (let j = 0; j < 9; j++) {
           const cell = document.getElementById(`cell-${i}-${j}`);
           cell.value = "";
-          cell.classList.remove("fixed", "correct", "incorrect");
+          cell.classList.remove("fixed", "correct", "incorrect", "invalid");
           cell.readOnly = false;
         }
       }
@@ -319,6 +336,133 @@
       return true;
     }
 
+    function isValidSudoku(board) {
+      // Check rows
+      for (let row = 0; row < 9; row++) {
+        const seen = new Set();
+        for (let col = 0; col < 9; col++) {
+          const num = board[row][col];
+          if (num !== 0) {
+            if (seen.has(num)) return false;
+            seen.add(num);
+          }
+        }
+      }
+      
+      // Check columns
+      for (let col = 0; col < 9; col++) {
+        const seen = new Set();
+        for (let row = 0; row < 9; row++) {
+          const num = board[row][col];
+          if (num !== 0) {
+            if (seen.has(num)) return false;
+            seen.add(num);
+          }
+        }
+      }
+      
+      // Check 3x3 boxes
+      for (let box = 0; box < 9; box++) {
+        const seen = new Set();
+        const startRow = Math.floor(box / 3) * 3;
+        const startCol = (box % 3) * 3;
+        for (let i = 0; i < 3; i++) {
+          for (let j = 0; j < 3; j++) {
+            const num = board[startRow + i][startCol + j];
+            if (num !== 0) {
+              if (seen.has(num)) return false;
+              seen.add(num);
+            }
+          }
+        }
+      }
+      
+      return true;
+    }
+
+    function validateAndHighlight() {
+      const board = getBoard();
+      const isValid = isValidSudoku(board);
+      
+      // Clear previous validation styling
+      for (let i = 0; i < 9; i++) {
+        for (let j = 0; j < 9; j++) {
+          const cell = document.getElementById(`cell-${i}-${j}`);
+          cell.classList.remove("invalid");
+        }
+      }
+      
+      if (!isValid) {
+        // Find and highlight conflicts
+        highlightConflicts(board);
+        return false;
+      }
+      
+      return true;
+    }
+
+    function highlightConflicts(board) {
+      // Check rows for conflicts
+      for (let row = 0; row < 9; row++) {
+        const seen = new Map();
+        for (let col = 0; col < 9; col++) {
+          const num = board[row][col];
+          if (num !== 0) {
+            if (seen.has(num)) {
+              // Highlight both the current cell and the previously seen cell
+              document.getElementById(`cell-${row}-${col}`).classList.add("invalid");
+              const prevCol = seen.get(num);
+              document.getElementById(`cell-${row}-${prevCol}`).classList.add("invalid");
+            } else {
+              seen.set(num, col);
+            }
+          }
+        }
+      }
+      
+      // Check columns for conflicts
+      for (let col = 0; col < 9; col++) {
+        const seen = new Map();
+        for (let row = 0; row < 9; row++) {
+          const num = board[row][col];
+          if (num !== 0) {
+            if (seen.has(num)) {
+              document.getElementById(`cell-${row}-${col}`).classList.add("invalid");
+              const prevRow = seen.get(num);
+              document.getElementById(`cell-${prevRow}-${col}`).classList.add("invalid");
+            } else {
+              seen.set(num, row);
+            }
+          }
+        }
+      }
+      
+      // Check 3x3 boxes for conflicts
+      for (let box = 0; box < 9; box++) {
+        const seen = new Map();
+        const startRow = Math.floor(box / 3) * 3;
+        const startCol = (box % 3) * 3;
+        for (let i = 0; i < 3; i++) {
+          for (let j = 0; j < 3; j++) {
+            const row = startRow + i;
+            const col = startCol + j;
+            const num = board[row][col];
+            if (num !== 0) {
+              const key = `${row}-${col}`;
+              if (seen.has(num)) {
+                document.getElementById(`cell-${row}-${col}`).classList.add("invalid");
+                const prevKey = seen.get(num);
+                const [prevRow, prevCol] = prevKey.split('-').map(Number);
+                document.getElementById(`cell-${prevRow}-${prevCol}`).classList.add("invalid");
+              } else {
+                seen.set(num, key);
+              }
+            }
+          }
+        }
+      }
+    }
+
     function solve(board) {
       for (let i = 0; i < 9; i++) {
         for (let j = 0; j < 9; j++) {
@@ -339,6 +483,14 @@
 
     function solveSudoku() {
       const board = getBoard();
+      
+      // Check if the current board is valid before solving
+      if (!isValidSudoku(board)) {
+        validateAndHighlight();
+        alert("Invalid Sudoku puzzle! Please fix the conflicts highlighted in red before solving.");
+        return;
+      }
+      
       if (solve(board)) {
         setBoard(board);
         alert("Solved!");
