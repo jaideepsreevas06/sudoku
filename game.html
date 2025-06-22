@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sudoku Board</title>
+  <style>
+    h1{
+        color:#d7e1ec;
+    }
+    body {
+      background-color: rgb(130, 176, 215);
+      font-family: fantasy;
+      text-align: center;
+      padding-top: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh; /* Full vertical centering */
+      margin: 0;
+    }
+
+    #board {
+      display: grid;
+      grid-template-columns: repeat(9, 40px);
+      grid-template-rows: repeat(9, 40px);
+      margin: 20px auto;
+      gap: 0;
+    }
+
+    .cell {
+      width: 38px;
+      height: 38px;
+      font-size: 20px;
+      text-align: center;
+      box-sizing: border-box;
+      border: none; /* We will fully control borders in JS */
+    }
+
+    .cell:hover {
+      outline: 1px solid #8bd9e7;
+      background-color: #92ddf4;
+      transition: 0.1s ease-in-out;
+    }
+
+    .cell.fixed {
+      background-color: #e0e0e0;
+      color: #333;
+      font-weight: bold;
+    }
+
+    .cell.correct {
+      background-color: #90EE90;
+    }
+
+    .cell.incorrect {
+      background-color: #FFB6C1;
+    }
+
+    .button-container {
+      display: flex;
+      gap: 10px;
+      margin: 20px 0;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: rgb(47, 125, 189);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: rgb(30, 100, 150);
+    }
+
+    .mode-info {
+      background-color: rgba(255, 255, 255, 0.9);
+      padding: 10px 20px;
+      border-radius: 8px;
+      margin: 10px 0;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Welcome, <span id="showName"></span></h1>
+  <div class="mode-info" id="modeInfo"></div>
+  <div id="board"></div>
+  <div class="button-container" id="buttonContainer">
+    <!-- Buttons will be added dynamically based on mode -->
+  </div>
+
+  <script>
+    const name = localStorage.getItem("playerName") || "Player";
+    const mode = localStorage.getItem("mode") || "solver";
+    document.getElementById("showName").textContent = name;
+
+    // Set mode info
+    const modeInfo = document.getElementById("modeInfo");
+    if (mode === "solver") {
+      modeInfo.textContent = "Solver Mode: Enter a Sudoku puzzle and click Solve to find the solution";
+    } else {
+      modeInfo.textContent = "Game Mode: Fill in the puzzle and check your answer";
+    }
+
+    const board = document.getElementById("board");
+    const buttonContainer = document.getElementById("buttonContainer");
+
+    // Sample Sudoku puzzles (you can add more)
+    const samplePuzzles = [
+      [
+        [5,3,0,0,7,0,0,0,0],
+        [6,0,0,1,9,5,0,0,0],
+        [0,9,8,0,0,0,0,6,0],
+        [8,0,0,0,6,0,0,0,3],
+        [4,0,0,8,0,3,0,0,1],
+        [7,0,0,0,2,0,0,0,6],
+        [0,6,0,0,0,0,2,8,0],
+        [0,0,0,4,1,9,0,0,5],
+        [0,0,0,0,8,0,0,7,9]
+      ],
+      [
+        [0,0,0,2,6,0,7,0,1],
+        [6,8,0,0,7,0,0,9,0],
+        [1,9,0,0,0,4,5,0,0],
+        [8,2,0,1,0,0,0,4,0],
+        [0,0,4,6,0,2,9,0,0],
+        [0,5,0,0,0,3,0,2,8],
+        [0,0,9,3,0,0,0,7,4],
+        [0,4,0,0,5,0,0,3,6],
+        [7,0,3,0,1,8,0,0,0]
+      ]
+    ];
+
+    let currentPuzzle = null;
+    let solution = null;
+
+    for (let i = 0; i < 9; i++) {
+      for (let j = 0; j < 9; j++) {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.maxLength = 1;
+        input.classList.add("cell");
+
+        input.addEventListener("input", (e) => {
+          const value = e.target.value;
+          if (!/^[1-9]$/.test(value)) {
+             e.target.value = "";
+           }
+        });
+
+        // Apply border logic
+        input.style.borderTop = (i === 0) ? "2px solid black" :
+                                (i % 3 === 0) ? "2px solid black" : "1px solid black";
+
+        input.style.borderLeft = (j === 0) ? "2px solid black" :
+                                 (j % 3 === 0) ? "2px solid black" : "1px solid black";
+
+        input.style.borderRight = (j === 8) ? "2px solid black" : "";
+        input.style.borderBottom = (i === 8) ? "2px solid black" : "";
+
+        input.id = `cell-${i}-${j}`;
+        board.appendChild(input);
+      }
+    }
+
+    // Add buttons based on mode
+    if (mode === "solver") {
+      buttonContainer.innerHTML = `
+        <button onclick="solveSudoku()">Solve</button>
+        <button onclick="clearBoard()">Clear</button>
+        <button onclick="goBack()">Back to Home</button>
+      `;
+    } else {
+      buttonContainer.innerHTML = `
+        <button onclick="generatePuzzle()">Generate New Puzzle</button>
+        <button onclick="checkAnswer()">Check Answer</button>
+        <button onclick="showSolution()">Show Solution</button>
+        <button onclick="clearBoard()">Clear</button>
+        <button onclick="goBack()">Back to Home</button>
+      `;
+      // Generate initial puzzle
+      generatePuzzle();
+    }
+
+    function generatePuzzle() {
+      // Select a random puzzle
+      const puzzleIndex = Math.floor(Math.random() * samplePuzzles.length);
+      currentPuzzle = samplePuzzles[puzzleIndex].map(row => [...row]);
+      
+      // Generate solution
+      solution = currentPuzzle.map(row => [...row]);
+      solve(solution);
+      
+      // Display puzzle
+      setBoard(currentPuzzle);
+      
+      // Make initial numbers fixed (non-editable)
+      for (let i = 0; i < 9; i++) {
+        for (let j = 0; j < 9; j++) {
+          const cell = document.getElementById(`cell-${i}-${j}`);
+          if (currentPuzzle[i][j] !== 0) {
+            cell.classList.add("fixed");
+            cell.readOnly = true;
+          } else {
+            cell.classList.remove("fixed");
+            cell.readOnly = false;
+          }
+          cell.classList.remove("correct", "incorrect");
+        }
+      }
+    }
+
+    function checkAnswer() {
+      if (!currentPuzzle) {
+        alert("Please generate a puzzle first!");
+        return;
+      }
+
+      const userBoard = getBoard();
+      let allCorrect = true;
+      let correctCount = 0;
+      let totalCount = 0;
+
+      // Clear previous styling
+      for (let i = 0; i < 9; i++) {
+        for (let j = 0; j < 9; j++) {
+          const cell = document.getElementById(`cell-${i}-${j}`);
+          cell.classList.remove("correct", "incorrect");
+        }
+      }
+
+      // Check each cell
+      for (let i = 0; i < 9; i++) {
+        for (let j = 0; j < 9; j++) {
+          const cell = document.getElementById(`cell-${i}-${j}`);
+          if (userBoard[i][j] !== 0) {
+            totalCount++;
+            if (userBoard[i][j] === solution[i][j]) {
+              cell.classList.add("correct");
+              correctCount++;
+            } else {
+              cell.classList.add("incorrect");
+              allCorrect = false;
+            }
+          }
+        }
+      }
+
+      if (allCorrect && totalCount === 81) {
+        alert("Congratulations! You solved the puzzle correctly!");
+      } else {
+        alert(`You have ${correctCount} out of ${totalCount} filled cells correct. Keep trying!`);
+      }
+    }
+
+    function showSolution() {
+      if (!solution) {
+        alert("Please generate a puzzle first!");
+        return;
+      }
+      setBoard(solution);
+      alert("Solution displayed!");
+    }
+
+    function clearBoard() {
+      for (let i = 0; i < 9; i++) {
+        for (let j = 0; j < 9; j++) {
+          const cell = document.getElementById(`cell-${i}-${j}`);
+          cell.value = "";
+          cell.classList.remove("fixed", "correct", "incorrect");
+          cell.readOnly = false;
+        }
+      }
+      currentPuzzle = null;
+      solution = null;
+    }
+
+    function goBack() {
+      window.location.href = "index.html";
+    }
+
+    function getBoard() {
+      const board = [];
+      for (let i = 0; i < 9; i++) {
+        const row = [];
+        for (let j = 0; j < 9; j++) {
+          const val = document.getElementById(`cell-${i}-${j}`).value;
+          row.push(val === "" ? 0 : parseInt(val));
+        }
+        board.push(row);
+      }
+      return board;
+    }
+
+    function setBoard(board) {
+      for (let i = 0; i < 9; i++) {
+        for (let j = 0; j < 9; j++) {
+          document.getElementById(`cell-${i}-${j}`).value = board[i][j] === 0 ? "" : board[i][j];
+        }
+      }
+    }
+
+    function isSafe(board, row, col, num) {
+      for (let x = 0; x < 9; x++) {
+        if (board[row][x] === num || board[x][col] === num) return false;
+        const boxRow = 3 * Math.floor(row / 3) + Math.floor(x / 3);
+        const boxCol = 3 * Math.floor(col / 3) + x % 3;
+        if (board[boxRow][boxCol] === num) return false;
+      }
+      return true;
+    }
+
+    function solve(board) {
+      for (let i = 0; i < 9; i++) {
+        for (let j = 0; j < 9; j++) {
+          if (board[i][j] === 0) {
+            for (let num = 1; num <= 9; num++) {
+              if (isSafe(board, i, j, num)) {
+                board[i][j] = num;
+                if (solve(board)) return true;
+                board[i][j] = 0;
+              }
+            }
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    function solveSudoku() {
+      const board = getBoard();
+      if (solve(board)) {
+        setBoard(board);
+        alert("Solved!");
+      } else {
+        alert("No solution found.");
+      }
+    }
+
+
+  </script>
+</body>
+</html>
